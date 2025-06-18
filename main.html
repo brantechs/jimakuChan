@@ -186,9 +186,32 @@
         var trans3_destlang = '';
 
 
-        var gas_key = getParam('gas_key');
-        
-        var TRANS_URL = 'https://script.google.com/macros/s/' + gas_key + '/exec';
+        var gasKeys = [];
+        var firstKey = getParam('gas_key');
+        if (firstKey != null && firstKey !== '') gasKeys.push(firstKey);
+        for (var i = 2; i <= 5; i++) {
+            var k = getParam('gas_key' + i);
+            if (k != null && k !== '') gasKeys.push(k);
+        }
+        var currentGasKeyIndex = 0;
+        var TOKEN_THRESHOLD = 4800;
+        var TRANS_URL = '';
+        function updateTransUrl() {
+            if (gasKeys.length > 0) {
+                TRANS_URL = 'https://script.google.com/macros/s/' + gasKeys[currentGasKeyIndex] + '/exec';
+            } else {
+                TRANS_URL = '';
+            }
+        }
+        function rotateGasKey() {
+            if (gasKeys.length > 1) {
+                currentGasKeyIndex = (currentGasKeyIndex + 1) % gasKeys.length;
+                updateTransUrl();
+                console.log('rotateGasKey -> index:' + currentGasKeyIndex);
+            }
+        }
+        updateTransUrl();
+        var tokenUsage = {};
         var query = ''
 
         // その他の設定 -----------------------
@@ -917,7 +940,7 @@
                         bouyomiChanClient.talk(recog_text);
                     }
 
-                    if(gas_key != null){
+                    if(gasKeys.length > 0){
                         
                         // 翻訳開始ステータス
                         var activeTranslations = [];
@@ -931,189 +954,187 @@
                         // 翻訳1言語目
                         if(arg_trans != null){
                             const processedText = applyCustomDictionary(recog_text);
-                            query = TRANS_URL + '?text=' + encodeURIComponent(processedText) + '&source=' + trans_sourcelang + '&target=' + trans_destlang;
-                            request.open('GET', query, true);
+                            let retry1 = 0;
+                            const sendTranslation1 = function(){
+                                query = TRANS_URL + '?text=' + encodeURIComponent(processedText) + '&source=' + trans_sourcelang + '&target=' + trans_destlang;
+                                request = new XMLHttpRequest();
+                                request.onreadystatechange = function(){
+                                    if (request.readyState === 4 && request.status === 200){
+                                        var responseText1 = request.responseText;
+                                        try {
+                                            var jsonResponse = JSON.parse(responseText1);
+                                            if (jsonResponse.translatedText) {
+                                                responseText1 = jsonResponse.translatedText;
+                                                var translatedCount = jsonResponse.translatedCount;
+                                                document.getElementById('translationCount').innerHTML = translatedCount;
+                                                tokenUsage[currentGasKeyIndex] = translatedCount;
+                                                if (translatedCount >= TOKEN_THRESHOLD) rotateGasKey();
+                                                console.log('translatedCount(1):'+translatedCount);
+                                            }
+                                        } catch (e) {}
 
-                            request.onreadystatechange = function(){
-                                if (request.readyState === 4 && request.status === 200){
-
-                                    var responseText1 = request.responseText;
-
-                                    // JSON形式であるかを確認し、JSONであればtranslatedTextを抽出
-                                    try {
-                                        var jsonResponse = JSON.parse(responseText1);
-                                        if (jsonResponse.translatedText) {
-                                            responseText1 = jsonResponse.translatedText;
-                                            var translatedCount = jsonResponse.translatedCount;
-                                            document.getElementById('translationCount').innerHTML = translatedCount;
-                                            console.log('translatedCount(1):'+translatedCount);
+                                        document.getElementById('speech_text-imb').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-bg').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-fg').innerHTML = lastFinalText;
+                                        var filteredResponseText1 = applyTranslationFilter(responseText1, 1);
+                                        document.getElementById('trans_text-imb').innerHTML =  filteredResponseText1;
+                                        document.getElementById('trans_text-bg').innerHTML =  filteredResponseText1;
+                                        document.getElementById('trans_text-fg').innerHTML =  filteredResponseText1;
+                                        isTextTranslation1Complete = true;
+                                        startTranslationDeleteTimer();
+                                        var completedTranslations = 0;
+                                        var totalTranslations = 0;
+                                        if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
+                                        if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
+                                        if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
+                                        if(completedTranslations === totalTranslations) {
+                                            updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
-                                    } catch (e) {
-                                        // JSON形式でなければ何もしない
+                                    } else if (request.readyState === 4) {
+                                        if ((request.status === 429 || request.status === 403) && retry1 < gasKeys.length - 1) {
+                                            rotateGasKey();
+                                            retry1++;
+                                            sendTranslation1();
+                                            return;
+                                        } else {
+                                            if (request.status === 429) {
+                                                updateTranslationStatus('API上限エラー', '#cc0000');
+                                            } else if (request.status === 403) {
+                                                updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else {
+                                                updateTranslationStatus('翻訳エラー(HTTP:' + request.status + ')', '#cc0000');
+                                            }
+                                        }
                                     }
-
-                                    document.getElementById('speech_text-imb').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-bg').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-fg').innerHTML = lastFinalText;
-                                    
-                                    // 翻訳結果1にフィルタリングを適用
-                                    var filteredResponseText1 = applyTranslationFilter(responseText1, 1);
-                                    document.getElementById('trans_text-imb').innerHTML =  filteredResponseText1;
-                                    document.getElementById('trans_text-bg').innerHTML =  filteredResponseText1;
-                                    document.getElementById('trans_text-fg').innerHTML =  filteredResponseText1;
-                                    isTextTranslation1Complete = true; // フラグを更新
-                                    
-                                    // 翻訳1完了時に翻訳タイマー開始
-                                    startTranslationDeleteTimer();
-                                    
-                                    // 翻訳完了チェック
-                                    var completedTranslations = 0;
-                                    var totalTranslations = 0;
-                                    if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
-                                    if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
-                                    if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
-                                    
-                                    if(completedTranslations === totalTranslations) {
-                                        updateTranslationStatus('翻訳完了', '#00aa00');
-                                    }
-                                } else if (request.readyState === 4) {
-                                    // エラー時の処理
-                                    if (request.status === 429) {
-                                        updateTranslationStatus('API上限エラー', '#cc0000');
-                                    } else if (request.status === 403) {
-                                        updateTranslationStatus('API認証エラー', '#cc0000');
-                                    } else {
-                                        updateTranslationStatus('翻訳エラー(HTTP:' + request.status + ')', '#cc0000');
-                                    }
-                                }
-                            }
-                            request.send(null);
+                                };
+                                request.open('GET', query, true);
+                                request.send(null);
+                            };
+                            sendTranslation1();
                         }
 
                         // 翻訳2言語目
                         if(arg_trans2 != null){
                             const processedText2 = applyCustomDictionary(recog_text);
-                            query2 = TRANS_URL + '?text=' + encodeURIComponent(processedText2) + '&source=' + trans_sourcelang + '&target=' + trans2_destlang;
-                            request2.open('GET', query2, true);
+                            let retry2 = 0;
+                            const sendTranslation2 = function(){
+                                query2 = TRANS_URL + '?text=' + encodeURIComponent(processedText2) + '&source=' + trans_sourcelang + '&target=' + trans2_destlang;
+                                request2 = new XMLHttpRequest();
+                                request2.onreadystatechange = function(){
+                                    if (request2.readyState === 4 && request2.status === 200){
+                                        var responseText2 = request2.responseText;
+                                        try {
+                                            var jsonResponse = JSON.parse(responseText2);
+                                            if (jsonResponse.translatedText) {
+                                                responseText2 = jsonResponse.translatedText;
+                                                var translatedCount2 = jsonResponse.translatedCount;
+                                                document.getElementById('translationCount').innerHTML = translatedCount2;
+                                                tokenUsage[currentGasKeyIndex] = translatedCount2;
+                                                if (translatedCount2 >= TOKEN_THRESHOLD) rotateGasKey();
+                                                console.log('translatedCount(2):'+translatedCount2);
+                                            }
+                                        } catch (e) {}
 
-                            request2.onreadystatechange = function(){
-                                if (request2.readyState === 4 && request2.status === 200){
-
-                                    var responseText2 = request2.responseText;
-
-                                    // JSON形式であるかを確認し、JSONであればtranslatedTextを抽出
-                                    try {
-                                        var jsonResponse = JSON.parse(responseText2);
-                                        if (jsonResponse.translatedText) {
-                                            responseText2 = jsonResponse.translatedText;
-                                            document.getElementById('translationCount').innerHTML = jsonResponse.translatedCount;
-                                            var translatedCount2 = jsonResponse.translatedCount;
-                                            document.getElementById('translationCount').innerHTML = translatedCount2;
-                                            console.log('translatedCount(2):'+translatedCount2);
+                                        document.getElementById('speech_text-imb').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-bg').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-fg').innerHTML = lastFinalText;
+                                        var filteredResponseText2 = applyTranslationFilter(responseText2, 2);
+                                        document.getElementById('trans_text2-imb').innerHTML = filteredResponseText2;
+                                        document.getElementById('trans_text2-bg').innerHTML = filteredResponseText2;
+                                        document.getElementById('trans_text2-fg').innerHTML = filteredResponseText2;
+                                        isTextTranslation2Complete = true;
+                                        startTranslationDeleteTimer();
+                                        var completedTranslations = 0;
+                                        var totalTranslations = 0;
+                                        if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
+                                        if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
+                                        if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
+                                        if(completedTranslations === totalTranslations) {
+                                            updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
-                                    } catch (e) {
-                                        // JSON形式でなければ何もしない
+                                    } else if (request2.readyState === 4) {
+                                        if ((request2.status === 429 || request2.status === 403) && retry2 < gasKeys.length - 1) {
+                                            rotateGasKey();
+                                            retry2++;
+                                            sendTranslation2();
+                                            return;
+                                        } else {
+                                            if (request2.status === 429) {
+                                                updateTranslationStatus('API上限エラー', '#cc0000');
+                                            } else if (request2.status === 403) {
+                                                updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else {
+                                                updateTranslationStatus('翻訳エラー(HTTP:' + request2.status + ')', '#cc0000');
+                                            }
+                                        }
                                     }
-
-                                    document.getElementById('speech_text-imb').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-bg').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-fg').innerHTML = lastFinalText;
-                                    
-                                    // 翻訳結果2にフィルタリングを適用
-                                    var filteredResponseText2 = applyTranslationFilter(responseText2, 2);
-                                    document.getElementById('trans_text2-imb').innerHTML = filteredResponseText2;
-                                    document.getElementById('trans_text2-bg').innerHTML = filteredResponseText2;
-                                    document.getElementById('trans_text2-fg').innerHTML = filteredResponseText2;
-                                    isTextTranslation2Complete = true; // フラグを更新
-                                    
-                                    // 翻訳2完了時に翻訳タイマー再開始
-                                    startTranslationDeleteTimer();
-                                    
-                                    // 翻訳完了チェック
-                                    var completedTranslations = 0;
-                                    var totalTranslations = 0;
-                                    if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
-                                    if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
-                                    if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
-                                    
-                                    if(completedTranslations === totalTranslations) {
-                                        updateTranslationStatus('翻訳完了', '#00aa00');
-                                    }
-                                } else if (request2.readyState === 4) {
-                                    // エラー時の処理
-                                    if (request2.status === 429) {
-                                        updateTranslationStatus('API上限エラー', '#cc0000');
-                                    } else if (request2.status === 403) {
-                                        updateTranslationStatus('API認証エラー', '#cc0000');
-                                    } else {
-                                        updateTranslationStatus('翻訳エラー(HTTP:' + request2.status + ')', '#cc0000');
-                                    }
-                                }
-                            }
-                            request2.send(null);
+                                };
+                                request2.open('GET', query2, true);
+                                request2.send(null);
+                            };
+                            sendTranslation2();
                         }
 
                         // 翻訳2言語目
                         if(arg_trans3 != null){
                             const processedText3 = applyCustomDictionary(recog_text);
-                            query3 = TRANS_URL + '?text=' + encodeURIComponent(processedText3) + '&source=' + trans_sourcelang + '&target=' + trans3_destlang;
-                            request3.open('GET', query3, true);
+                            let retry3 = 0;
+                            const sendTranslation3 = function(){
+                                query3 = TRANS_URL + '?text=' + encodeURIComponent(processedText3) + '&source=' + trans_sourcelang + '&target=' + trans3_destlang;
+                                request3 = new XMLHttpRequest();
+                                request3.onreadystatechange = function(){
+                                    if (request3.readyState === 4 && request3.status === 200){
+                                        var responseText3 = request3.responseText;
+                                        try {
+                                            var jsonResponse = JSON.parse(responseText3);
+                                            if (jsonResponse.translatedText) {
+                                                responseText3 = jsonResponse.translatedText;
+                                                var translatedCount3 = jsonResponse.translatedCount;
+                                                document.getElementById('translationCount').innerHTML = translatedCount3;
+                                                tokenUsage[currentGasKeyIndex] = translatedCount3;
+                                                if (translatedCount3 >= TOKEN_THRESHOLD) rotateGasKey();
+                                                console.log('translatedCount(3):'+translatedCount3);
+                                            }
+                                        } catch (e) {}
 
-                            request3.onreadystatechange = function(){
-                                if (request3.readyState === 4 && request3.status === 200){
-
-                                    var responseText3 = request3.responseText;
-
-                                    // JSON形式であるかを確認し、JSONであればtranslatedTextを抽出
-                                    try {
-                                        var jsonResponse = JSON.parse(responseText3);
-                                        if (jsonResponse.translatedText) {
-                                            responseText3 = jsonResponse.translatedText;
-                                            document.getElementById('translationCount').innerHTML = jsonResponse.translatedCount;
-                                            var translatedCount3 = jsonResponse.translatedCount;
-                                            document.getElementById('translationCount').innerHTML = translatedCount3;
-                                            console.log('translatedCount(3):'+translatedCount3);
+                                        document.getElementById('speech_text-imb').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-bg').innerHTML = lastFinalText;
+                                        document.getElementById('speech_text-fg').innerHTML = lastFinalText;
+                                        var filteredResponseText3 = applyTranslationFilter(responseText3, 3);
+                                        document.getElementById('trans_text3-imb').innerHTML = filteredResponseText3;
+                                        document.getElementById('trans_text3-bg').innerHTML = filteredResponseText3;
+                                        document.getElementById('trans_text3-fg').innerHTML = filteredResponseText3;
+                                        isTextTranslation3Complete = true;
+                                        startTranslationDeleteTimer();
+                                        var completedTranslations = 0;
+                                        var totalTranslations = 0;
+                                        if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
+                                        if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
+                                        if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
+                                        if(completedTranslations === totalTranslations) {
+                                            updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
-                                    } catch (e) {
-                                        // JSON形式でなければ何もしない
+                                    } else if (request3.readyState === 4) {
+                                        if ((request3.status === 429 || request3.status === 403) && retry3 < gasKeys.length - 1) {
+                                            rotateGasKey();
+                                            retry3++;
+                                            sendTranslation3();
+                                            return;
+                                        } else {
+                                            if (request3.status === 429) {
+                                                updateTranslationStatus('API上限エラー', '#cc0000');
+                                            } else if (request3.status === 403) {
+                                                updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else {
+                                                updateTranslationStatus('翻訳エラー(HTTP:' + request3.status + ')', '#cc0000');
+                                            }
+                                        }
                                     }
-
-                                    document.getElementById('speech_text-imb').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-bg').innerHTML = lastFinalText;
-                                    document.getElementById('speech_text-fg').innerHTML = lastFinalText;
-                                    
-                                    // 翻訳結果3にフィルタリングを適用
-                                    var filteredResponseText3 = applyTranslationFilter(responseText3, 3);
-                                    document.getElementById('trans_text3-imb').innerHTML = filteredResponseText3;
-                                    document.getElementById('trans_text3-bg').innerHTML = filteredResponseText3;
-                                    document.getElementById('trans_text3-fg').innerHTML = filteredResponseText3;
-                                    isTextTranslation3Complete = true; // フラグを更新
-                                    
-                                    // 翻訳3完了時に翻訳タイマー再開始
-                                    startTranslationDeleteTimer();
-                                    
-                                    // 翻訳完了チェック
-                                    var completedTranslations = 0;
-                                    var totalTranslations = 0;
-                                    if(arg_trans != null) { totalTranslations++; if(isTextTranslation1Complete) completedTranslations++; }
-                                    if(arg_trans2 != null) { totalTranslations++; if(isTextTranslation2Complete) completedTranslations++; }
-                                    if(arg_trans3 != null) { totalTranslations++; if(isTextTranslation3Complete) completedTranslations++; }
-                                    
-                                    if(completedTranslations === totalTranslations) {
-                                        updateTranslationStatus('翻訳完了', '#00aa00');
-                                    }
-                                } else if (request3.readyState === 4) {
-                                    // エラー時の処理
-                                    if (request3.status === 429) {
-                                        updateTranslationStatus('API上限エラー', '#cc0000');
-                                    } else if (request3.status === 403) {
-                                        updateTranslationStatus('API認証エラー', '#cc0000');
-                                    } else {
-                                        updateTranslationStatus('翻訳エラー(HTTP:' + request3.status + ')', '#cc0000');
-                                    }
-                                }
-                            }
-                            request3.send(null);
+                                };
+                                request3.open('GET', query3, true);
+                                request3.send(null);
+                            };
+                            sendTranslation3();
                         }
 
                     } else {
@@ -1163,7 +1184,7 @@
             recognition.start();
             console.log("recog start: cnt:" + String(my_count));
             // 初期ステータス設定
-            if (gas_key != null && gas_key !== '') {
+            if (gasKeys.length > 0) {
                 updateTranslationStatus('待機中', '#666');
             } else {
                 updateTranslationStatus('API KEYなし', '#999');
@@ -1173,7 +1194,7 @@
             recognition.start();
             console.log("recog start (default device): cnt:" + String(my_count));
             // 初期ステータス設定
-            if (gas_key != null && gas_key !== '') {
+            if (gasKeys.length > 0) {
                 updateTranslationStatus('待機中', '#666');
             } else {
                 updateTranslationStatus('API KEYなし', '#999');

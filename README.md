@@ -22,6 +22,7 @@
 - **Google Translate API連携**: 高精度な機械翻訳
 - **翻訳ステータス表示**: リアルタイムでの翻訳進行状況表示
 - **翻訳回数カウント**: API使用量の把握
+- **複数トークンローテーション**: 5つまでの翻訳トークンを自動切替
 
 ### 🎨 表示カスタマイズ
 - **豊富なフォント選択**: システムフォント + カスタムフォント対応
@@ -46,6 +47,8 @@ jimakuChan/
 ├── main.html           # 字幕表示エンジン
 ├── js/
 │   └── bouyomichan_client.js # 棒読みちゃんWebSocketクライアント
+├── gas/
+│   └── translate.gs    # Google Apps Script 用翻訳プロキシ
 ├── font/               # カスタムフォントファイル
 ├── font.css            # フォント定義
 └── run_server.py       # 開発用HTTPSサーバー
