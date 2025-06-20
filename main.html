@@ -991,7 +991,7 @@
                                             updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
                                     } else if (request.readyState === 4) {
-                                        if ((request.status === 429 || request.status === 403) && retry1 < gasKeys.length - 1) {
+                                        if ((request.status === 429 || request.status === 403 || request.status === 0) && retry1 < gasKeys.length - 1) {
                                             rotateGasKey();
                                             retry1++;
                                             sendTranslation1();
@@ -1001,6 +1001,8 @@
                                                 updateTranslationStatus('API上限エラー', '#cc0000');
                                             } else if (request.status === 403) {
                                                 updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else if (request.status === 0) {
+                                                updateTranslationStatus('通信エラー', '#cc0000');
                                             } else {
                                                 updateTranslationStatus('翻訳エラー(HTTP:' + request.status + ')', '#cc0000');
                                             }
@@ -1053,7 +1055,7 @@
                                             updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
                                     } else if (request2.readyState === 4) {
-                                        if ((request2.status === 429 || request2.status === 403) && retry2 < gasKeys.length - 1) {
+                                        if ((request2.status === 429 || request2.status === 403 || request2.status === 0) && retry2 < gasKeys.length - 1) {
                                             rotateGasKey();
                                             retry2++;
                                             sendTranslation2();
@@ -1063,6 +1065,8 @@
                                                 updateTranslationStatus('API上限エラー', '#cc0000');
                                             } else if (request2.status === 403) {
                                                 updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else if (request2.status === 0) {
+                                                updateTranslationStatus('通信エラー', '#cc0000');
                                             } else {
                                                 updateTranslationStatus('翻訳エラー(HTTP:' + request2.status + ')', '#cc0000');
                                             }
@@ -1115,7 +1119,7 @@
                                             updateTranslationStatus('翻訳完了', '#00aa00');
                                         }
                                     } else if (request3.readyState === 4) {
-                                        if ((request3.status === 429 || request3.status === 403) && retry3 < gasKeys.length - 1) {
+                                        if ((request3.status === 429 || request3.status === 403 || request3.status === 0) && retry3 < gasKeys.length - 1) {
                                             rotateGasKey();
                                             retry3++;
                                             sendTranslation3();
@@ -1125,6 +1129,8 @@
                                                 updateTranslationStatus('API上限エラー', '#cc0000');
                                             } else if (request3.status === 403) {
                                                 updateTranslationStatus('API認証エラー', '#cc0000');
+                                            } else if (request3.status === 0) {
+                                                updateTranslationStatus('通信エラー', '#cc0000');
                                             } else {
                                                 updateTranslationStatus('翻訳エラー(HTTP:' + request3.status + ')', '#cc0000');
                                             }
