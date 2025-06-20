@@ -78,6 +78,15 @@
             /*word-break: break-all;*/
             overflow-wrap : break-word;
         }
+
+        .active-key {
+            background-color: #ffffcc;
+        }
+
+        .inactive-key {
+            background-color: #ffffff;
+            opacity: 0.5;
+        }
     </style>
 
     <style>
@@ -145,6 +154,7 @@
 翻訳用 Google API-KEY3: <input type="text" name="gas_key3" id="gas_key3" size="60" oninput="updateOptionValues();" /><br>
 翻訳用 Google API-KEY4: <input type="text" name="gas_key4" id="gas_key4" size="60" oninput="updateOptionValues();" /><br>
 翻訳用 Google API-KEY5: <input type="text" name="gas_key5" id="gas_key5" size="60" oninput="updateOptionValues();" />
+<button type="button" onclick="document.getElementById('asr_frame').contentWindow.rotateGasKey(); updateActiveKey();">APIキー切替</button>
 </div>
 キーの作成方法 → <a target="_blank" href="http://www.sayonari.com/trans_asr/index_asr.html">[LINK]</a><BR>
 翻訳回数：<div id="displayTransCount" style="display: inline-block; _display: inline;"></div><font color="gray">（上限 無料：5,000回，有料：20,000回）</font><BR>
@@ -2634,6 +2644,10 @@
     document.addEventListener('DOMContentLoaded', function() {
         // 音声レベル監視のみ開始（デバイス選択なし）
         refreshAudioDevices();
+
+        // APIキー入力欄を取得
+        initGasKeyInputs();
+        updateActiveKey();
         
         // システムフォント選択メニューを初期化
         setTimeout(initializeFontSelectors, 100);
@@ -2661,9 +2675,41 @@
     }
 
     // 1秒ごとに翻訳カウントを更新
+
     setInterval(function() {
         document.getElementById('displayTransCount').innerHTML = getTranslationCount();
     }, 1000);
+</script>
+
+<!-- # GASキーアクティブ表示 ############################ -->
+<script>
+    var gasKeyInputs = [];
+    function initGasKeyInputs() {
+        gasKeyInputs = [];
+        for (var i = 1; i <= 5; i++) {
+            var id = (i === 1) ? 'gas_key' : 'gas_key' + i;
+            var el = document.getElementById(id);
+            if (el) gasKeyInputs.push(el);
+        }
+    }
+
+    function updateActiveKey() {
+        var iframe = document.getElementById('asr_frame');
+        if (!iframe || !iframe.contentWindow) return;
+        var idx = iframe.contentWindow.currentGasKeyIndex;
+        if (typeof idx === 'undefined') return;
+        gasKeyInputs.forEach(function(el, i) {
+            if (i === idx) {
+                el.classList.add('active-key');
+                el.classList.remove('inactive-key');
+            } else {
+                el.classList.add('inactive-key');
+                el.classList.remove('active-key');
+            }
+        });
+    }
+
+    setInterval(updateActiveKey, 1000);
 </script>
 
 <!-- # iframeの高さを切り替える　############################ -->
