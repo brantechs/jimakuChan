@@ -149,11 +149,16 @@
 
 <!-- # API key text box ##################### -->
 <div>
-翻訳用 Google API-KEY1: <input type="text" name="gas_key" id="gas_key" size="60" oninput="updateOptionValues();" /><br>
-翻訳用 Google API-KEY2: <input type="text" name="gas_key2" id="gas_key2" size="60" oninput="updateOptionValues();" /><br>
-翻訳用 Google API-KEY3: <input type="text" name="gas_key3" id="gas_key3" size="60" oninput="updateOptionValues();" /><br>
-翻訳用 Google API-KEY4: <input type="text" name="gas_key4" id="gas_key4" size="60" oninput="updateOptionValues();" /><br>
+翻訳用 Google API-KEY1: <input type="text" name="gas_key" id="gas_key" size="60" oninput="updateOptionValues();" />
+<input type="radio" name="gas_key_select" value="0" onclick="selectGasKey(0);" checked> 使用<br>
+翻訳用 Google API-KEY2: <input type="text" name="gas_key2" id="gas_key2" size="60" oninput="updateOptionValues();" />
+<input type="radio" name="gas_key_select" value="1" onclick="selectGasKey(1);"> 使用<br>
+翻訳用 Google API-KEY3: <input type="text" name="gas_key3" id="gas_key3" size="60" oninput="updateOptionValues();" />
+<input type="radio" name="gas_key_select" value="2" onclick="selectGasKey(2);"> 使用<br>
+翻訳用 Google API-KEY4: <input type="text" name="gas_key4" id="gas_key4" size="60" oninput="updateOptionValues();" />
+<input type="radio" name="gas_key_select" value="3" onclick="selectGasKey(3);"> 使用<br>
 翻訳用 Google API-KEY5: <input type="text" name="gas_key5" id="gas_key5" size="60" oninput="updateOptionValues();" />
+<input type="radio" name="gas_key_select" value="4" onclick="selectGasKey(4);"> 使用<br>
 <button type="button" onclick="document.getElementById('asr_frame').contentWindow.rotateGasKey(); updateActiveKey();">APIキー切替</button>
 トークン切替閾値: <input type="number" name="token_threshold" id="token_threshold" value="4800" size="6" oninput="updateOptionValues();" /><br>
 </div>
@@ -2686,12 +2691,16 @@
 <!-- # GASキーアクティブ表示 ############################ -->
 <script>
     var gasKeyInputs = [];
+    var gasKeyRadios = [];
     function initGasKeyInputs() {
         gasKeyInputs = [];
+        gasKeyRadios = [];
         for (var i = 1; i <= 5; i++) {
             var id = (i === 1) ? 'gas_key' : 'gas_key' + i;
             var el = document.getElementById(id);
             if (el) gasKeyInputs.push(el);
+            var radio = document.querySelector('input[name="gas_key_select"][value="' + (i-1) + '"]');
+            if (radio) gasKeyRadios.push(radio);
         }
     }
 
@@ -2709,6 +2718,17 @@
                 el.classList.remove('active-key');
             }
         });
+        gasKeyRadios.forEach(function(radio, i) {
+            radio.checked = (i === idx);
+        });
+    }
+
+    function selectGasKey(index) {
+        var iframe = document.getElementById('asr_frame');
+        if (iframe && iframe.contentWindow && typeof iframe.contentWindow.selectGasKey === 'function') {
+            iframe.contentWindow.selectGasKey(index);
+        }
+        updateActiveKey();
     }
 
     setInterval(updateActiveKey, 1000);
