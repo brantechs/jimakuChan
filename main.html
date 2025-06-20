@@ -194,7 +194,11 @@
             if (k != null && k !== '') gasKeys.push(k);
         }
         var currentGasKeyIndex = 0;
-        var TOKEN_THRESHOLD = 4800;
+        // 翻訳トークンを切り替える閾値（URLパラメータ token_threshold）
+        var TOKEN_THRESHOLD = (function() {
+            var v = parseInt(getParam('token_threshold'));
+            return isNaN(v) ? 4800 : v;
+        })();
         var TRANS_URL = '';
         function updateTransUrl() {
             if (gasKeys.length > 0) {
