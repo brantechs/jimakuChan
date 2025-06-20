@@ -214,6 +214,14 @@
                 console.log('rotateGasKey -> index:' + currentGasKeyIndex);
             }
         }
+
+        function selectGasKey(index) {
+            if (index >= 0 && index < gasKeys.length) {
+                currentGasKeyIndex = index;
+                updateTransUrl();
+                console.log('selectGasKey -> index:' + currentGasKeyIndex);
+            }
+        }
         updateTransUrl();
         var tokenUsage = {};
         var query = ''
